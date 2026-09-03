@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=me.appinstaller.com
+Exec=@bindir@/appinstaller --gapplication-service

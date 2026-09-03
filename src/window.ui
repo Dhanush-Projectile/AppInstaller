@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="Adw" version="1.0"/>
+  <template class="AppinstallerWindow" parent="AdwApplicationWindow">
+    <property name="title" translatable="yes">AppInstaller</property>
+    <property name="default-width">700</property>
+    <property name="default-height">500</property>
+    <property name="content">
+      <object class="AdwToolbarView">
+        <child type="top">
+          <object class="AdwHeaderBar">
+            <child type="end">
+              <object class="GtkMenuButton">
+                <property name="primary">True</property>
+                <property name="icon-name">open-menu-symbolic</property>
+                <property name="tooltip-text" translatable="yes">Main Menu</property>
+                <property name="menu-model">primary_menu</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <property name="content">
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="halign">center</property>
+            <property name="valign">center</property>
+            <property name="vexpand">True</property>
+            <property name="spacing">24</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="halign">center</property>
+                <property name="valign">center</property>
+                <property name="spacing">48</property>
+                <child>
+                  <object class="GtkBox" id="app_item">
+                    <property name="orientation">vertical</property>
+                    <property name="halign">center</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkImage" id="app_icon">
+                        <property name="icon-name">package-x-generic</property>
+                        <property name="pixel-size">110</property>
+                        <style>
+                          <class name="app-icon"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="app_label">
+                        <property name="label" translatable="yes">APP</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">➔</property>
+                    <style>
+                      <class name="installer-arrow"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox" id="folder_item">
+                    <property name="orientation">vertical</property>
+                    <property name="halign">center</property>
+                    <property name="spacing">12</property>
+                    <child>
+                      <object class="GtkImage" id="folder_icon_drop">
+                        <property name="icon-name">folder</property>
+                        <property name="pixel-size">120</property>
+                        <style>
+                          <class name="icon-drop-zone"/>
+                        </style>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label" translatable="yes">System</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="drop_hint">
+                <property name="label" translatable="yes">Drag the package onto the System folder to install</property>
+                <style>
+                  <class name="dim-label"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="choose_button">
+                <property name="label" translatable="yes">_Choose Package…</property>
+                <property name="use-underline">True</property>
+                <property name="halign">center</property>
+                <style>
+                  <class name="pill"/>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="halign">center</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkLabel" id="pkg_manager_label">
+                    <property name="label" translatable="yes">Detecting package manager...</property>
+                    <style>
+                      <class name="caption"/>
+                      <class name="dim-label"/>
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="status_label">
+                    <property name="label" translatable="yes">Ready</property>
+                    <style>
+                      <class name="caption"/>
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </property>
+      </object>
+    </property>
+  </template>
+  <menu id="primary_menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">_Preferences</attribute>
+        <attribute name="action">app.preferences</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">_Keyboard Shortcuts</attribute>
+        <attribute name="action">app.shortcuts</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">_About AppInstaller</attribute>
+        <attribute name="action">app.about</attribute>
+      </item>
+    </section>
+  </menu>
+</interface>

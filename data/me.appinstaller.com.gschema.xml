@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="appinstaller">
+	<schema id="me.appinstaller.com" path="/me/appinstaller/com/">
+	</schema>
+</schemalist>

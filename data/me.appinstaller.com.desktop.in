@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=AppInstaller
+Exec=appinstaller
+Icon=me.appinstaller.com
+Terminal=false
+Type=Application
+Categories=Utility;
+Keywords=GTK;
+StartupNotify=true
+DBusActivatable=true

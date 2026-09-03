@@ -1,0 +1,8 @@
+# List of source files containing translatable strings.
+# Please keep this file sorted alphabetically.
+data/me.appinstaller.com.desktop.in
+data/me.appinstaller.com.metainfo.xml.in
+data/me.appinstaller.com.gschema.xml
+src/main.vala
+src/window.vala
+src/window.ui
