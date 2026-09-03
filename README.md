@@ -1,3 +1,3 @@
-# appinstaller
+# Appinstaller
 
-A description of this project.
+### WIP package installer GUI written in GTK vala
