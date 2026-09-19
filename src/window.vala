@@ -410,6 +410,7 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
     }
 
     private async void do_subprocess_wait (string[] argv, string basename, owned GLib.SourceFunc? on_done) {
+        bool success = false;
         try {
             var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
             var proc = launcher.spawnv (argv);
@@ -417,7 +418,7 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
             status_label.set_label ("Successfully installed %s".printf (basename));
             status_label.remove_css_class ("accent");
             status_label.add_css_class ("success");
-            show_toast ("Installation complete!");
+            success = true;
         } catch (Error e) {
             status_label.set_label ("Installation failed: %s".printf (e.message));
             status_label.remove_css_class ("accent");
@@ -426,6 +427,53 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         if (on_done != null) {
             on_done ();
         }
+        if (success) {
+            show_success_dialog (basename);
+        }
+    }
+
+    private void show_success_dialog (string basename) {
+        var dialog = new Adw.Dialog ();
+        dialog.set_title ("Installation Complete");
+        dialog.set_content_width (360);
+
+        var main_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12);
+        main_box.set_margin_top (24);
+        main_box.set_margin_bottom (24);
+        main_box.set_margin_start (24);
+        main_box.set_margin_end (24);
+
+        var check_icon = new Gtk.Image.from_icon_name ("object-select-symbolic");
+        check_icon.set_pixel_size (64);
+        check_icon.add_css_class ("success");
+        check_icon.set_halign (Gtk.Align.CENTER);
+        main_box.append (check_icon);
+
+        var title_label = new Gtk.Label ("Installation Complete");
+        title_label.add_css_class ("title-2");
+        title_label.set_halign (Gtk.Align.CENTER);
+        main_box.append (title_label);
+
+        var file_label = new Gtk.Label ("Successfully installed %s".printf (basename));
+        file_label.add_css_class ("dim-label");
+        file_label.set_halign (Gtk.Align.CENTER);
+        file_label.set_ellipsize (Pango.EllipsizeMode.MIDDLE);
+        main_box.append (file_label);
+
+        var ok_btn = new Gtk.Button.with_label ("OK");
+        ok_btn.add_css_class ("suggested-action");
+        ok_btn.add_css_class ("pill");
+        ok_btn.set_halign (Gtk.Align.CENTER);
+        ok_btn.set_margin_top (8);
+        ok_btn.clicked.connect (() => {
+            dialog.close ();
+        });
+        main_box.append (ok_btn);
+
+        dialog.set_child (main_box);
+        dialog.present (this);
+
+        ok_btn.grab_focus ();
     }
 
     private void show_error (string message) {
@@ -435,15 +483,7 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         status_label.add_css_class ("error");
     }
 
-    private void show_toast (string message) {
-        status_label.set_label (message);
-        GLib.Timeout.add_seconds (5, () => {
-            status_label.set_label ("Ready");
-            status_label.remove_css_class ("success");
-            status_label.remove_css_class ("error");
-            return false;
-        });
-    }
+    
 
     private void cleanup_icon_tmpdir () {
         if (icon_tmpdir != null) {
