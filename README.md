@@ -2,8 +2,25 @@
 
 ### WIP package installer GUI written in GTK vala currently support Debian and Redhat linux
 
-<img width="750" height="550" alt="image" src="https://github.com/user-attachments/assets/d24ca0ea-7406-4e5d-8dac-0ddd3c4333df" />
+<img width="718" height="639" alt="image" src="https://github.com/user-attachments/assets/c024c752-7562-48ff-b72f-b426c4c94c55" />
+
+### Set up Build Directory
+```
+meson setup builddir
+```
+
+### Build
+```
+meson compile -C builddir
+```
+### RUN
+```
+ ./builddir/src/softwareinstaller
+```
 
 
-### working
-<img width="480" height="338" alt="Screencast From 2026-09-04 02-01-56" src="https://github.com/user-attachments/assets/416baea9-0ae9-40e3-95ac-588544b4b73e" />
+
+### Working
+
+https://github.com/user-attachments/assets/9af49c9d-69f5-4365-82b2-f51067aacc33
+
