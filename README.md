@@ -19,8 +19,3 @@ meson compile -C builddir
 ```
 
 
-
-### Working
-
-https://github.com/user-attachments/assets/9af49c9d-69f5-4365-82b2-f51067aacc33
-
