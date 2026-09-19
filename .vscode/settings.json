@@ -1,4 +1,4 @@
 {
-    "C_Cpp.default.compileCommands": "/home/dhanush/Projects/AppInstaller/builddir/compile_commands.json",
+    "C_Cpp.default.compileCommands": "/home/dhanush/Documents/GitHub/AppInstaller/builddir/compile_commands.json",
     "C_Cpp.default.configurationProvider": "mesonbuild.mesonbuild"
 }

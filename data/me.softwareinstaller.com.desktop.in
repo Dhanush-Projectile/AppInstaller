@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Software Installer
+GenericName=Package Installer
+Comment=Install DEB and RPM packages
+Exec=softwareinstaller
+Icon=me.softwareinstaller.com
+Terminal=false
+Type=Application
+Categories=System;Utility;
+Keywords=Package;Installer;DEB;RPM;
+StartupNotify=true
+DBusActivatable=true

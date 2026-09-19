@@ -1,1 +1,1 @@
-i18n.gettext('appinstaller', preset: 'glib')
+i18n.gettext('softwareinstaller', preset: 'glib')

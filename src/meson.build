@@ -1,10 +1,10 @@
-appinstaller_sources = [
+softwareinstaller_sources = [
   'main.vala',
   'application.vala',
   'window.vala',
 ]
 
-appinstaller_deps = [
+softwareinstaller_deps = [
   config_dep,
   dependency('gtk4'),
   dependency('gdk-pixbuf-2.0'),
@@ -12,13 +12,13 @@ appinstaller_deps = [
   meson.get_compiler('vala').find_library('posix'),
 ]
 
-appinstaller_sources += gnome.compile_resources('appinstaller-resources',
-  'appinstaller.gresource.xml',
-  c_name: 'appinstaller'
+softwareinstaller_sources += gnome.compile_resources('softwareinstaller-resources',
+  'softwareinstaller.gresource.xml',
+  c_name: 'softwareinstaller'
 )
 
-executable('appinstaller', appinstaller_sources,
-  dependencies: appinstaller_deps,
+executable('softwareinstaller', softwareinstaller_sources,
+  dependencies: softwareinstaller_deps,
   include_directories: config_inc,
        install: true,
 )

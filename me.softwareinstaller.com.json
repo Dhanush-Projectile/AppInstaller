@@ -1,12 +1,12 @@
 {
-    "id" : "me.appinstaller.com",
+    "id" : "me.softwareinstaller.com",
     "runtime" : "org.gnome.Platform",
     "runtime-version" : "50",
     "sdk" : "org.gnome.Sdk",
     "sdk-extensions" : [
         "org.freedesktop.Sdk.Extension.vala"
     ],
-    "command" : "appinstaller",
+    "command" : "softwareinstaller",
     "finish-args" : [
         "--share=network",
         "--share=ipc",
@@ -32,7 +32,7 @@
     ],
     "modules" : [
         {
-            "name" : "appinstaller",
+            "name" : "softwareinstaller",
             "builddir" : true,
             "buildsystem" : "meson",
             "sources" : [

@@ -1,6 +1,6 @@
 desktop_file = i18n.merge_file(
-        input: 'me.appinstaller.com.desktop.in',
-       output: 'me.appinstaller.com.desktop',
+        input: 'me.softwareinstaller.com.desktop.in',
+       output: 'me.softwareinstaller.com.desktop',
          type: 'desktop',
        po_dir: '../po',
       install: true,
@@ -13,8 +13,8 @@ if desktop_utils.found()
 endif
 
 appstream_file = i18n.merge_file(
-        input: 'me.appinstaller.com.metainfo.xml.in',
-       output: 'me.appinstaller.com.metainfo.xml',
+        input: 'me.softwareinstaller.com.metainfo.xml.in',
+       output: 'me.softwareinstaller.com.metainfo.xml',
        po_dir: '../po',
       install: true,
   install_dir: get_option('datadir') / 'metainfo'
@@ -24,7 +24,7 @@ appstreamcli = find_program('appstreamcli', required: false, disabler: true)
 test('Validate appstream file', appstreamcli,
      args: ['validate', '--no-net', '--explain', appstream_file])
 
-install_data('me.appinstaller.com.gschema.xml',
+install_data('me.softwareinstaller.com.gschema.xml',
   install_dir: get_option('datadir') / 'glib-2.0' / 'schemas'
 )
 
@@ -33,12 +33,11 @@ test('Validate schema file',
      compile_schemas,
      args: ['--strict', '--dry-run', meson.current_source_dir()])
 
-
 service_conf = configuration_data()
 service_conf.set('bindir', get_option('prefix') / get_option('bindir'))
 configure_file(
-  input: 'me.appinstaller.com.service.in',
-  output: 'me.appinstaller.com.service',
+  input: 'me.softwareinstaller.com.service.in',
+  output: 'me.softwareinstaller.com.service',
   configuration: service_conf,
   install_dir: get_option('datadir') / 'dbus-1' / 'services'
 )

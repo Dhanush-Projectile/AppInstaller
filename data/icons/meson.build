@@ -1,4 +1,4 @@
-application_id = 'me.appinstaller.com'
+application_id = 'me.softwareinstaller.com'
 
 scalable_dir = 'hicolor' / 'scalable' / 'apps'
 install_data(

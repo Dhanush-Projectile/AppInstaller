@@ -1,4 +1,4 @@
-# Appinstaller
+# Software Installer
 
 ### WIP package installer GUI written in GTK vala currently support Debian and Redhat linux
 

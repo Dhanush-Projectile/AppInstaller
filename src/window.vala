@@ -32,28 +32,37 @@ public enum PackageType {
     }
 }
 
-[GtkTemplate (ui = "/me/appinstaller/com/window.ui")]
-public class Appinstaller.Window : Adw.ApplicationWindow {
+[GtkTemplate (ui = "/me/softwareinstaller/com/window.ui")]
+public class SoftwareInstaller.Window : Adw.ApplicationWindow {
     [GtkChild]
-    private unowned Gtk.Label pkg_manager_label;
+    private unowned Adw.ToastOverlay toast_overlay;
     [GtkChild]
-    private unowned Gtk.Label status_label;
+    private unowned Gtk.Stack main_stack;
     [GtkChild]
-    private unowned Gtk.Label drop_hint;
+    private unowned Adw.StatusPage empty_page;
+    [GtkChild]
+    private unowned Gtk.Box staged_page;
     [GtkChild]
     private unowned Gtk.Image app_icon;
     [GtkChild]
     private unowned Gtk.Label app_label;
     [GtkChild]
-    private unowned Gtk.Image folder_icon_drop;
+    private unowned Gtk.Label install_hint;
     [GtkChild]
     private unowned Gtk.Button choose_button;
+    [GtkChild]
+    private unowned Gtk.Button change_button;
+    [GtkChild]
+    private unowned Gtk.Button install_button;
 
     private string? detected_pkg_manager = null;
     private string? staged_filepath = null;
     private PackageType staged_pkg_type = PackageType.UNKNOWN;
+    private string? staged_pkg_name = null;
+    private bool staged_pkg_installed = false;
     private string? icon_tmpdir = null;
     private Gdk.Texture? app_texture = null;
+    private bool installing = false;
 
     public Window (Gtk.Application app) {
         Object (application: app);
@@ -64,6 +73,8 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         setup_drop_target ();
         setup_drag_source ();
         choose_button.clicked.connect (on_choose_package);
+        change_button.clicked.connect (on_choose_package);
+        install_button.clicked.connect (on_install_clicked);
         apply_drop_zone_css ();
         close_request.connect (() => {
             cleanup_icon_tmpdir ();
@@ -75,13 +86,11 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         // First try to find the actual package manager binaries
         if (has_command ("dpkg")) {
             detected_pkg_manager = "dpkg";
-            pkg_manager_label.set_label ("Package manager: dpkg (Debian/Ubuntu)");
             return;
         }
 
         if (has_command ("rpm")) {
             detected_pkg_manager = "rpm";
-            pkg_manager_label.set_label ("Package manager: rpm (Fedora/RHEL)");
             return;
         }
 
@@ -90,18 +99,18 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         var distro = detect_distro_from_os_release ();
         if (distro == "debian" || distro == "ubuntu") {
             detected_pkg_manager = "dpkg";
-            pkg_manager_label.set_label ("Package manager: dpkg (%s)".printf (distro));
             return;
         }
         if (distro == "fedora" || distro == "rhel" || distro == "centos" || distro == "rocky") {
             detected_pkg_manager = "rpm";
-            pkg_manager_label.set_label ("Package manager: rpm (%s)".printf (distro));
             return;
         }
 
         detected_pkg_manager = null;
-        pkg_manager_label.set_label ("No supported package manager found");
-        drop_hint.set_label ("Cannot install packages on this system");
+        empty_page.set_description (
+            _("No supported package manager was found on this system. Packages cannot be installed.")
+        );
+        choose_button.sensitive = false;
     }
 
     private bool has_command (string command) {
@@ -139,59 +148,62 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
     }
 
     private void setup_drop_target () {
-        var folder_drop = create_drop_target_for_folder ();
-        folder_icon_drop.add_controller (folder_drop);
+        empty_page.add_controller (create_drop_target (empty_page));
+        staged_page.add_controller (create_drop_target (staged_page));
     }
 
-    private Gtk.DropTarget create_drop_target_for_folder () {
+    private Gtk.DropTarget create_drop_target (Gtk.Widget widget) {
         var drop_target = new Gtk.DropTarget (typeof (Gdk.FileList), Gdk.DragAction.COPY);
+        // Accept both Gdk.FileList (from most file managers) and
+        // text/uri-list (G_TYPE_STRV) drops for maximum compatibility.
+        drop_target.set_gtypes ({ typeof (Gdk.FileList), typeof (string[]) });
 
         drop_target.enter.connect ((x, y) => {
-            if (staged_filepath == null) {
-                return (Gdk.DragAction) 0;
-            }
-            folder_icon_drop.add_css_class ("drop-zone-active");
+            widget.add_css_class ("drop-zone-active");
             return Gdk.DragAction.COPY;
         });
 
         drop_target.leave.connect (() => {
-            folder_icon_drop.remove_css_class ("drop-zone-active");
+            widget.remove_css_class ("drop-zone-active");
         });
 
         drop_target.drop.connect ((value, x, y) => {
-            folder_icon_drop.remove_css_class ("drop-zone-active");
+            widget.remove_css_class ("drop-zone-active");
+
+            if (installing) {
+                return false;
+            }
 
             if (detected_pkg_manager == null) {
-                show_error ("No supported package manager found.");
+                show_error (_("No supported package manager found."));
                 return false;
             }
 
-            // If a package is staged, install it on drop
-            if (staged_filepath != null) {
-                show_password_dialog (staged_filepath, staged_pkg_type);
-                return true;
+            string? filepath = null;
+
+            if (value.holds (typeof (Gdk.FileList))) {
+                var file_list = (Gdk.FileList) value.get_boxed ();
+                var files = file_list.get_files ();
+                if (!files.is_empty ()) {
+                    filepath = files.nth_data (0).get_path ();
+                }
+            } else if (value.holds (typeof (string[]))) {
+                var uris = (string[]) value.get_boxed ();
+                if (uris[0] != null) {
+                    var file = File.new_for_uri (uris[0]);
+                    filepath = file.get_path ();
+                }
             }
 
-            // Otherwise accept an externally dropped package as the staged file
-            if (!value.holds (typeof (Gdk.FileList))) {
-                show_error ("Could not read dropped files.");
+            if (filepath == null) {
+                show_error (_("Could not read dropped file."));
                 return false;
             }
 
-            var file_list = (Gdk.FileList) value.get_object ();
-            var files = file_list.get_files ();
-            if (files.is_empty ()) {
-                show_error ("No files dropped.");
-                return true;
-            }
-
-            var file = files.nth_data (0);
-            var filepath = file.get_path ();
             var pkg_type = get_package_type (filepath);
-
             if (pkg_type == PackageType.UNKNOWN) {
-                show_error ("Unsupported file type. Please drop a .deb or .rpm file.");
-                return true;
+                show_error (_("Unsupported file. Please drop a .deb or .rpm package."));
+                return false;
             }
 
             stage_package (filepath, pkg_type);
@@ -225,54 +237,133 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
     }
 
     private PackageType get_package_type (string filepath) {
-        if (filepath.has_suffix (".deb")) return PackageType.DEB;
-        if (filepath.has_suffix (".rpm")) return PackageType.RPM;
+        var lower = filepath.down ();
+        if (lower.has_suffix (".deb")) return PackageType.DEB;
+        if (lower.has_suffix (".rpm")) return PackageType.RPM;
         return PackageType.UNKNOWN;
     }
 
     private void stage_package (string filepath, PackageType pkg_type) {
         staged_filepath = filepath;
         staged_pkg_type = pkg_type;
+        staged_pkg_name = null;
+        staged_pkg_installed = false;
 
         var basename = Path.get_basename (filepath);
 
         // Show a generic icon immediately, then replace with the real one
         app_icon.set_from_icon_name (pkg_type == PackageType.DEB ? "package-x-generic" : "application-x-rpm");
         app_label.set_label (basename);
+        install_hint.set_label (_("Ready to install"));
+        install_button.label = _("_Install");
+        install_button.sensitive = false;
+        change_button.sensitive = true;
 
-        drop_hint.set_label ("Drag the package onto the System folder to install");
-
-        status_label.set_label ("Package ready: %s".printf (basename));
-        status_label.remove_css_class ("success");
-        status_label.remove_css_class ("error");
-        status_label.remove_css_class ("accent");
+        main_stack.set_visible_child (staged_page);
 
         // Extract the actual app icon from the package asynchronously
         extract_icon_from_package.begin (filepath, pkg_type);
+        // Offer install or uninstall depending on whether the package is on the system
+        check_if_installed.begin (filepath, pkg_type);
+    }
+
+    private async void check_if_installed (string filepath, PackageType pkg_type) {
+        install_hint.set_label (_("Checking if already installed…"));
+        install_button.label = _("_Install");
+        install_button.sensitive = false;
+
+        string? pkg_name;
+        var installed = yield is_package_installed (filepath, pkg_type, out pkg_name);
+
+        // The selection may have changed while we were checking
+        if (staged_filepath != filepath) {
+            return;
+        }
+
+        staged_pkg_name = pkg_name;
+        staged_pkg_installed = installed;
+
+        if (installed) {
+            install_hint.set_label (_("This package is already installed"));
+            install_button.label = _("_Uninstall");
+            install_button.sensitive = true;
+        } else {
+            install_hint.set_label (_("Ready to install"));
+            install_button.label = _("_Install");
+            install_button.sensitive = true;
+        }
+        install_button.grab_focus ();
+    }
+
+    private async bool is_package_installed (string filepath, PackageType pkg_type, out string? pkg_name) {
+        pkg_name = null;
+        try {
+            if (pkg_type == PackageType.DEB) {
+                string output;
+                yield run_shell_command_with_output (
+                    "dpkg-deb -f '%s' Package".printf (filepath), out output);
+                pkg_name = output.strip ();
+            } else if (pkg_type == PackageType.RPM) {
+                string output;
+                yield run_shell_command_with_output (
+                    "rpm -qp --queryformat '%%{NAME}' '%s'".printf (filepath), out output);
+                pkg_name = output.strip ();
+            }
+
+            if (pkg_name == null || pkg_name == "") {
+                return false;
+            }
+
+            var launcher = new SubprocessLauncher (
+                SubprocessFlags.STDOUT_SILENCE | SubprocessFlags.STDERR_SILENCE
+            );
+            var args = (pkg_type == PackageType.DEB)
+                ? new string[] { "dpkg", "-s", pkg_name }
+                : new string[] { "rpm", "-q", pkg_name };
+            var proc = launcher.spawnv (args);
+            try {
+                yield proc.wait_check_async ();
+                return true; // package is installed
+            } catch (Error e) {
+                return false; // not installed or unknown
+            }
+        } catch (Error e) {
+            return false;
+        }
+    }
+
+    private void reset_to_empty () {
+        staged_filepath = null;
+        staged_pkg_type = PackageType.UNKNOWN;
+        staged_pkg_name = null;
+        staged_pkg_installed = false;
+        app_texture = null;
+        main_stack.set_visible_child (empty_page);
+        choose_button.grab_focus ();
     }
 
     private void on_choose_package () {
         choose_package.begin ();
     }
 
-    private async void choose_package () {
+    public async void choose_package () {
         if (detected_pkg_manager == null) {
-            show_error ("No supported package manager found.");
+            show_error (_("No supported package manager found."));
             return;
         }
 
         var filter = new Gtk.FileFilter ();
-        filter.name = "Package files";
+        filter.name = _("Package files");
         filter.add_suffix ("deb");
         filter.add_suffix ("rpm");
 
         var all_filter = new Gtk.FileFilter ();
-        all_filter.name = "All files";
+        all_filter.name = _("All files");
         all_filter.add_pattern ("*");
 
         var file_dialog = new Gtk.FileDialog ();
-        file_dialog.title = "Select a Package";
-        file_dialog.accept_label = "_Install";
+        file_dialog.title = _("Select a Package");
+        file_dialog.accept_label = _("_Install");
         file_dialog.default_filter = filter;
 
         var filters = new ListStore (typeof (Gtk.FileFilter));
@@ -289,201 +380,132 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         }
 
         if (file == null) {
-            show_error ("Could not read selected file.");
+            show_error (_("Could not read selected file."));
             return;
         }
 
         var filepath = file.get_path ();
         var pkg_type = get_package_type (filepath);
         if (pkg_type == PackageType.UNKNOWN) {
-            show_error ("Unsupported file type. Please choose a .deb or .rpm file.");
+            show_error (_("Unsupported file type. Please choose a .deb or .rpm file."));
             return;
         }
         stage_package (filepath, pkg_type);
     }
 
-    private void show_password_dialog (string filepath, PackageType pkg_type) {
-        var dialog = new Adw.Dialog ();
-        dialog.set_title ("Authentication Required");
-        dialog.set_content_width (420);
-        dialog.set_content_height (220);
-
-        var main_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 16);
-        main_box.set_margin_top (24);
-        main_box.set_margin_bottom (24);
-        main_box.set_margin_start (24);
-        main_box.set_margin_end (24);
-
-        var header_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 12);
-        header_box.set_halign (Gtk.Align.CENTER);
-
-        var lock_icon = new Gtk.Image.from_icon_name ("dialog-password-symbolic");
-        lock_icon.set_pixel_size (48);
-        header_box.append (lock_icon);
-
-        var title_label = new Gtk.Label ("Enter Password to Install");
-        title_label.add_css_class ("title-2");
-        header_box.append (title_label);
-
-        main_box.append (header_box);
-
-        var basename = Path.get_basename (filepath);
-        var file_label = new Gtk.Label ("Installing: %s".printf (basename));
-        file_label.add_css_class ("dim-label");
-        file_label.set_halign (Gtk.Align.CENTER);
-        file_label.set_ellipsize (Pango.EllipsizeMode.MIDDLE);
-        main_box.append (file_label);
-
-        var password_entry = new Gtk.PasswordEntry ();
-        password_entry.show_peek_icon = true;
-        password_entry.placeholder_text = "System Password";
-        password_entry.hexpand = true;
-
-        var password_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        password_box.append (password_entry);
-        main_box.append (password_box);
-
-        var button_box = new Gtk.Box (Gtk.Orientation.HORIZONTAL, 8);
-        button_box.set_halign (Gtk.Align.END);
-
-        var cancel_btn = new Gtk.Button.with_label ("Cancel");
-        cancel_btn.add_css_class ("flat");
-        cancel_btn.clicked.connect (() => {
-            dialog.close ();
-        });
-        button_box.append (cancel_btn);
-
-        var install_btn = new Gtk.Button.with_label ("Install");
-        install_btn.add_css_class ("suggested-action");
-        install_btn.add_css_class ("pill");
-        install_btn.clicked.connect (() => {
-            var password = password_entry.get_text ();
-            if (password.length == 0) {
-                password_entry.add_css_class ("error");
-                return;
-            }
-            password_entry.remove_css_class ("error");
-
-            // Disable the form so the user can't change the password mid-install
-            password_entry.sensitive = false;
-            install_btn.sensitive = false;
-            cancel_btn.sensitive = false;
-            install_btn.label = "Installing…";
-
-            // Keep the dialog open during install; close it when done
-            run_install (filepath, pkg_type, password, () => {
-                dialog.close ();
-                return false;
-            });
-        });
-        password_entry.activate.connect (() => {
-            install_btn.clicked ();
-        });
-        button_box.append (install_btn);
-
-        main_box.append (button_box);
-        dialog.set_child (main_box);
-        dialog.present (this);
-
-        password_entry.grab_focus ();
-    }
-
-    private void run_install (string filepath, PackageType pkg_type, string password, owned GLib.SourceFunc? on_done) {
-        var basename = Path.get_basename (filepath);
-        status_label.set_label ("Installing %s ...".printf (basename));
-        status_label.remove_css_class ("success");
-        status_label.remove_css_class ("error");
-        status_label.add_css_class ("accent");
-
-        string[] argv;
-        if (pkg_type == PackageType.DEB) {
-            argv = { "/bin/sh", "-c",
-                "echo '%s' | sudo -S dpkg -i '%s' 2>&1 && echo '%s' | sudo -S apt-get install -f -y 2>&1"
-                .printf (password, filepath, password) };
-        } else {
-            argv = { "/bin/sh", "-c",
-                "echo '%s' | sudo -S rpm -i '%s' 2>&1"
-                .printf (password, filepath) };
+    private void on_install_clicked () {
+        if (staged_filepath == null) {
+            return;
         }
-
-        do_subprocess_wait.begin (argv, basename, on_done);
+        if (detected_pkg_manager == null) {
+            show_error (_("No supported package manager found."));
+            return;
+        }
+        if (staged_pkg_installed) {
+            run_uninstall.begin (staged_pkg_name, staged_pkg_type);
+        } else {
+            run_install.begin (staged_filepath, staged_pkg_type);
+        }
     }
 
-    private async void do_subprocess_wait (string[] argv, string basename, owned GLib.SourceFunc? on_done) {
+    private async void run_install (string filepath, PackageType pkg_type) {
+        var basename = Path.get_basename (filepath);
+
+        installing = true;
+        install_button.sensitive = false;
+        change_button.sensitive = false;
+        install_hint.set_label (_("Installing…"));
+
         bool success = false;
         try {
-            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_PIPE | SubprocessFlags.STDERR_PIPE);
+            // Delegate authentication to the system's polkit agent, as
+            // required by the platform design guidelines: applications must
+            // never ask for administrative passwords themselves.
+            string[] argv;
+            if (pkg_type == PackageType.DEB) {
+                argv = { "/usr/bin/pkexec", "/bin/sh", "-c",
+                    "dpkg -i '%s' && apt-get install -f -y".printf (filepath) };
+            } else {
+                argv = { "/usr/bin/pkexec", "/bin/sh", "-c",
+                    "rpm -i '%s'".printf (filepath) };
+            }
+
+            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_SILENCE | SubprocessFlags.STDERR_SILENCE);
             var proc = launcher.spawnv (argv);
             yield proc.wait_check_async ();
-            status_label.set_label ("Successfully installed %s".printf (basename));
-            status_label.remove_css_class ("accent");
-            status_label.add_css_class ("success");
             success = true;
         } catch (Error e) {
-            status_label.set_label ("Installation failed: %s".printf (e.message));
-            status_label.remove_css_class ("accent");
-            status_label.add_css_class ("error");
+            // Authorization was declined or the install command failed
         }
-        if (on_done != null) {
-            on_done ();
-        }
+
+        installing = false;
+
         if (success) {
-            show_success_dialog (basename);
+            var toast = new Adw.Toast (_("Successfully installed %s").printf (basename));
+            toast.timeout = 5;
+            toast_overlay.add_toast (toast);
+            reset_to_empty ();
+        } else {
+            var toast = new Adw.Toast (_("Couldn't install %s").printf (basename));
+            toast.timeout = 5;
+            toast_overlay.add_toast (toast);
+            install_hint.set_label (_("Installation failed"));
+            install_button.sensitive = true;
+            change_button.sensitive = true;
         }
     }
 
-    private void show_success_dialog (string basename) {
-        var dialog = new Adw.Dialog ();
-        dialog.set_title ("Installation Complete");
-        dialog.set_content_width (360);
+    private async void run_uninstall (string? pkg_name, PackageType pkg_type) {
+        if (pkg_name == null || pkg_name == "") {
+            show_error (_("Could not determine the installed package name."));
+            return;
+        }
 
-        var main_box = new Gtk.Box (Gtk.Orientation.VERTICAL, 12);
-        main_box.set_margin_top (24);
-        main_box.set_margin_bottom (24);
-        main_box.set_margin_start (24);
-        main_box.set_margin_end (24);
+        installing = true;
+        install_button.sensitive = false;
+        change_button.sensitive = false;
+        install_hint.set_label (_("Uninstalling…"));
 
-        var check_icon = new Gtk.Image.from_icon_name ("object-select-symbolic");
-        check_icon.set_pixel_size (64);
-        check_icon.add_css_class ("success");
-        check_icon.set_halign (Gtk.Align.CENTER);
-        main_box.append (check_icon);
+        bool success = false;
+        try {
+            string[] argv;
+            if (pkg_type == PackageType.DEB) {
+                argv = { "/usr/bin/pkexec", "dpkg", "-r", pkg_name };
+            } else {
+                argv = { "/usr/bin/pkexec", "rpm", "-e", pkg_name };
+            }
 
-        var title_label = new Gtk.Label ("Installation Complete");
-        title_label.add_css_class ("title-2");
-        title_label.set_halign (Gtk.Align.CENTER);
-        main_box.append (title_label);
+            var launcher = new SubprocessLauncher (SubprocessFlags.STDOUT_SILENCE | SubprocessFlags.STDERR_SILENCE);
+            var proc = launcher.spawnv (argv);
+            yield proc.wait_check_async ();
+            success = true;
+        } catch (Error e) {
+            // Authorization was declined or the uninstall command failed
+        }
 
-        var file_label = new Gtk.Label ("Successfully installed %s".printf (basename));
-        file_label.add_css_class ("dim-label");
-        file_label.set_halign (Gtk.Align.CENTER);
-        file_label.set_ellipsize (Pango.EllipsizeMode.MIDDLE);
-        main_box.append (file_label);
+        installing = false;
 
-        var ok_btn = new Gtk.Button.with_label ("OK");
-        ok_btn.add_css_class ("suggested-action");
-        ok_btn.add_css_class ("pill");
-        ok_btn.set_halign (Gtk.Align.CENTER);
-        ok_btn.set_margin_top (8);
-        ok_btn.clicked.connect (() => {
-            dialog.close ();
-        });
-        main_box.append (ok_btn);
-
-        dialog.set_child (main_box);
-        dialog.present (this);
-
-        ok_btn.grab_focus ();
+        if (success) {
+            var toast = new Adw.Toast (_("Successfully uninstalled %s").printf (pkg_name));
+            toast.timeout = 5;
+            toast_overlay.add_toast (toast);
+            reset_to_empty ();
+        } else {
+            var toast = new Adw.Toast (_("Couldn't uninstall %s").printf (pkg_name));
+            toast.timeout = 5;
+            toast_overlay.add_toast (toast);
+            install_hint.set_label (_("Uninstall failed"));
+            install_button.label = _("_Uninstall");
+            install_button.sensitive = true;
+            change_button.sensitive = true;
+        }
     }
 
     private void show_error (string message) {
-        status_label.set_label (message);
-        status_label.remove_css_class ("accent");
-        status_label.remove_css_class ("success");
-        status_label.add_css_class ("error");
+        var toast = new Adw.Toast (message);
+        toast.timeout = 5;
+        toast_overlay.add_toast (toast);
     }
-
-    
 
     private void cleanup_icon_tmpdir () {
         if (icon_tmpdir != null) {
@@ -500,7 +522,7 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         cleanup_icon_tmpdir ();
 
         try {
-            icon_tmpdir = DirUtils.make_tmp ("appinstaller-XXXXXX");
+            icon_tmpdir = DirUtils.make_tmp ("softwareinstaller-XXXXXX");
         } catch (Error e) {
             return;
         }
@@ -528,7 +550,7 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
             if (icon_path != null) {
                 var file = File.new_for_path (icon_path);
                 var texture = Gdk.Texture.from_file (file);
-                app_texture = scale_texture (texture, 110);
+                app_texture = scale_texture (texture, 96);
                 app_icon.set_from_paintable (app_texture);
             }
         } catch (Error e) {
@@ -674,32 +696,15 @@ public class Appinstaller.Window : Adw.ApplicationWindow {
         var css_provider = new Gtk.CssProvider ();
         css_provider.load_from_string ("""
             .drop-zone {
-                border: 3px dashed alpha(@borders, 0.5);
+                border: none;
                 border-radius: 24px;
-                background: alpha(@card_bg_color, 0.3);
-                padding: 32px;
-                transition: all 200ms ease;
             }
             .drop-zone-active {
-                border-color: @accent_bg_color;
-                background: alpha(@accent_bg_color, 0.1);
-            }
-            .icon-drop-zone {
-                color: @accent_color;
+                background-color: alpha(@accent_bg_color, 0.1);
+                border: 2px dashed @accent_bg_color;
             }
             .app-icon {
                 color: @accent_bg_color;
-            }
-            .installer-arrow {
-                font-size: 40px;
-                color: alpha(@window_fg_color, 0.5);
-                font-weight: 300;
-            }
-            .success {
-                color: @success_color;
-            }
-            .error {
-                color: @error_color;
             }
         """);
         Gtk.StyleContext.add_provider_for_display (

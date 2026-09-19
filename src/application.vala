@@ -18,39 +18,42 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-public class Appinstaller.Application : Adw.Application {
+public class SoftwareInstaller.Application : Adw.Application {
     public Application () {
         Object (
-            application_id: "me.appinstaller.com",
+            application_id: "me.softwareinstaller.com",
             flags: ApplicationFlags.DEFAULT_FLAGS,
-            resource_base_path: "/me/appinstaller/com"
+            resource_base_path: "/me/softwareinstaller/com"
         );
     }
 
     construct {
         ActionEntry[] action_entries = {
+            { "choose", this.on_choose_action },
             { "about", this.on_about_action },
-            { "preferences", this.on_preferences_action },
+            { "shortcuts", this.on_shortcuts_action },
             { "quit", this.quit }
         };
         this.add_action_entries (action_entries, this);
+        this.set_accels_for_action ("app.choose", {"<control>o"});
         this.set_accels_for_action ("app.quit", {"<control>q"});
+        this.set_accels_for_action ("app.shortcuts", {"<control>question"});
     }
 
     public override void activate () {
         base.activate ();
-        var win = this.active_window ?? new Appinstaller.Window (this);
+        var win = this.active_window ?? new SoftwareInstaller.Window (this);
         win.present ();
     }
 
     private void on_about_action () {
         string[] developers = { "Dhanush" };
         var about = new Adw.AboutDialog () {
-            application_name = "AppInstaller",
-            application_icon = "me.appinstaller.com",
+            application_name = "Software Installer",
+            application_icon = "me.softwareinstaller.com",
             developer_name = "Dhanush",
             translator_credits = _("translator-credits"),
-            version = "0.1.0",
+            version = Config.PACKAGE_VERSION,
             developers = developers,
             copyright = "© 2026 Dhanush",
         };
@@ -58,7 +61,19 @@ public class Appinstaller.Application : Adw.Application {
         about.present (this.active_window);
     }
 
-    private void on_preferences_action () {
-        message ("app.preferences action activated");
+    private void on_choose_action () {
+        var win = this.active_window as SoftwareInstaller.Window;
+        if (win != null) {
+            win.choose_package.begin ();
+        }
+    }
+
+    private void on_shortcuts_action () {
+        var dialog = new Adw.ShortcutsDialog ();
+        var section = new Adw.ShortcutsSection (_("Shortcuts"));
+        section.add (new Adw.ShortcutsItem.from_action (_("Choose a package"), "app.choose"));
+        section.add (new Adw.ShortcutsItem.from_action (_("Quit"), "app.quit"));
+        dialog.add (section);
+        dialog.present (this.active_window);
     }
 }
